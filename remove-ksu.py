@@ -49,11 +49,8 @@ defconfig_lines_to_remove = ["CONFIG_ARM64_MODULE_PLTS=y\n",
                    "# CONFIG_TEST_BPF is not set\n",
                    "# CONFIG_TEST_STATIC_KEYS is not set\n",
                    "# CONFIG_TEST_KMOD is not set\n",
-                   "# CONFIG_ARM64_RELOC_TEST is not set\n"]
-
-# Line to replace
-defconfig_line_to_replace = "CONFIG_MODULE_FORCE_LOAD=y\n"
-defconfig_new_line = "# CONFIG_MODULES is not set\n"
+                   "# CONFIG_ARM64_RELOC_TEST is not set\n",
+                   "CONFIG_MODULE_FORCE_LOAD=y\n"]
 
 with open(defconfig_filepath, "r+") as f:
     lines = f.readlines()
@@ -61,10 +58,7 @@ with open(defconfig_filepath, "r+") as f:
     f.truncate()  # Clear the file content
     for line in lines:
         if line not in defconfig_lines_to_remove:
-            if line == defconfig_line_to_replace:
-                f.write(defconfig_new_line)
-            else:
-                f.write(line)
+            f.write(line)
     print(f"Processed {defconfig_filepath}")
 
 # Replace with the path to your file

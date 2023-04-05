@@ -8,7 +8,7 @@ jobs:
     name: Build Stellaris kernel
     runs-on: ubuntu-latest
     steps:
-    - name: Set variables
+    - name: Set Repo variables
       id: vars
       run: |
         echo "release_name=Stellaris-UNOFFICIAL" >> $GITHUB_OUTPUT
@@ -19,6 +19,12 @@ jobs:
       with:
         repository: ${{ steps.vars.outputs.repo }}
         path: ${{ steps.vars.outputs.release_name }}
+
+    - name: "Set Last Commit variables"
+      id: sha
+      run: |
+        echo "long_sha=$(git -C ${{ steps.vars.outputs.release_name }} rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "short_sha=$(git -C ${{ steps.vars.outputs.release_name }} rev-parse HEAD | cut -b 1-8 - )" >> $GITHUB_OUTPUT
 
     - name: Checkout zipper
       uses: actions/checkout@v3
@@ -37,13 +43,13 @@ jobs:
         to: ${{ secrets.CHANNEL_ID }}
         token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         disable_web_page_preview: true
-        format:  markdown
+        format:  html
         message: |
           ${{ steps.vars.outputs.release_name }} build started.
+          
+          Building on commit <a href="https://github.com/DawfukFR/stellaris_kernel_oneplus_sm8250/commit/${{ steps.sha.outputs.long_sha }}">${{ steps.sha.outputs.short_sha }}</a>.
 
-          ${{ steps.vars.outputs.repo }} [commit's](https://github.com/"${{ steps.vars.outputs.repo }}"/commits)
-
-          [Workflow](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          <a href="https://github.com/${{ steps.vars.outputs.repo }}/commits">All Commits</a> | <a href="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}">Running Action</a>
 
     - name: Run script to remove Ksu
       run: python script/remove-ksu.py ${{ steps.vars.outputs.release_name }}
