@@ -1,0 +1,78 @@
+name: Build Stellaris-UNOFFICIAL
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Stellaris kernel
+    runs-on: ubuntu-latest
+    steps:
+    - name: Set variables
+      id: vars
+      run: |
+        echo "release_name=Stellaris-UNOFFICIAL" >> $GITHUB_OUTPUT
+        echo "repo=DawfukFR/stellaris_kernel_oneplus_sm8250" >> $GITHUB_OUTPUT
+
+    - name: Checkout kernel source
+      uses: actions/checkout@v3
+      with:
+        repository: ${{ steps.vars.outputs.repo }}
+        path: ${{ steps.vars.outputs.release_name }}
+
+    - name: Checkout zipper
+      uses: actions/checkout@v3
+      with:
+        repository: sen-tenz/AnyKernel3
+        path: zipper
+
+    - name: Checkout script
+      uses: actions/checkout@v3
+      with:
+        path: script
+
+    - name: Pre-build message to Telegram
+      uses: appleboy/telegram-action@master
+      with:
+        to: ${{ secrets.CHANNEL_ID }}
+        token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        disable_web_page_preview: true
+        format:  markdown
+        message: |
+          ${{ steps.vars.outputs.release_name }} build started.
+
+          ${{ steps.vars.outputs.repo }} [commit's](https://github.com/"${{ steps.vars.outputs.repo }}"/commits)
+
+          [Workflow](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+    - name: Run script to remove Ksu
+      run: python script/remove-ksu.py ${{ steps.vars.outputs.release_name }}
+
+    - name: Android kernel build
+      uses: sen-tenz/android-kernel-actions@neutron
+      id: build
+      env:
+        NAME: ${{ steps.vars.outputs.release_name }}
+        KERNEL_PATH: ${{ steps.vars.outputs.release_name }}
+      with:
+        arch: arm64
+        compiler: neutron-clang/latest
+        defconfig: vendor/kona-perf_defconfig
+        image: Image.gz
+
+    - name: Post build to Telegram
+      uses: appleboy/telegram-action@master
+      with:
+        to: ${{ secrets.CHANNEL_ID }}
+        token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        disable_web_page_preview: true
+        message: ${{ steps.vars.outputs.release_name }} is built!, took ${{ steps.build.outputs.elapsed_time }} seconds.
+        document: ${{ steps.build.outputs.outfile }}
+        
+    - name: "Alert failed build"
+      uses: appleboy/telegram-action@master
+      if: ${{ failure() }}
+      with:
+        to: ${{ secrets.CHANNEL_ID }}
+        token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        message: Failed building ${{ steps.vars.outputs.release_name }}, check action for more info.
