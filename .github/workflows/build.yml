@@ -8,36 +8,41 @@ jobs:
     name: Build Stellaris kernel
     runs-on: ubuntu-latest
     steps:
-    - name: Set Repo variables
-      id: vars
-      run: |
-        echo "release_name=Stellaris-UNOFFICIAL" >> $GITHUB_OUTPUT
-        echo "repo=DawfukFR/stellaris_kernel_oneplus_sm8250" >> $GITHUB_OUTPUT
-
-    - name: Checkout kernel source
+    - name: Checkout Script and Config
       uses: actions/checkout@v3
       with:
-        repository: ${{ steps.vars.outputs.repo }}
-        path: ${{ steps.vars.outputs.release_name }}
+        path: script
+
+    - name: Setup Configuration
+      run: |
+        echo "RELEASE_NAME=$(cat script/config.env | grep "RELEASE_NAME" | head -n 1 | cut -d "=" -f 2 | tr -d '\r' )" >> $GITHUB_ENV
+        echo "REPO=$(cat script/config.env | grep "REPO" | head -n 1 | cut -d "=" -f 2 | tr -d '\r')" >> $GITHUB_ENV
+        echo "ARCH=$(cat script/config.env | grep "ARCH" | head -n 1 | cut -d "=" -f 2 | tr -d '\r')" >> $GITHUB_ENV
+        echo "COMPILER=$(cat script/config.env | grep "COMPILER" | head -n 1 | cut -d "=" -f 2 | tr -d '\r')" >> $GITHUB_ENV
+        echo "DEFCONFIG=$(cat script/config.env | grep "DEFCONFIG" | head -n 1 | cut -d "=" -f 2 | tr -d '\r')" >> $GITHUB_ENV
+        echo "IMAGE=$(cat script/config.env | grep "IMAGE" | head -n 1 | cut -d "=" -f 2 | tr -d '\r')" >> $GITHUB_ENV
+        echo "DTBO=$(cat script/config.env | grep "DTBO" | head -n 1 | cut -d "=" -f 2 | tr -d '\r')" >> $GITHUB_ENV
+        echo "DTB=$(cat script/config.env | grep "DTB" | head -n 1 | cut -d "=" -f 2 | tr -d '\r')" >> $GITHUB_ENV
+
+    - name: Checkout Kernel Source
+      uses: actions/checkout@v3
+      with:
+        repository: ${{ env.REPO }}
+        path: ${{ env.RELEASE_NAME }}
 
     - name: "Set Last Commit variables"
-      id: sha
+      id: vars
       run: |
-        echo "long_sha=$(git -C ${{ steps.vars.outputs.release_name }} rev-parse HEAD)" >> $GITHUB_OUTPUT
-        echo "short_sha=$(git -C ${{ steps.vars.outputs.release_name }} rev-parse HEAD | cut -b 1-8 - )" >> $GITHUB_OUTPUT
+        echo "long_sha=$(git -C ${{ env.RELEASE_NAME }} rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "short_sha=$(git -C ${{ env.RELEASE_NAME }} rev-parse HEAD | cut -b 1-8 - )" >> $GITHUB_OUTPUT
 
-    - name: Checkout zipper
+    - name: Checkout Zipper
       uses: actions/checkout@v3
       with:
         repository: sen-tenz/AnyKernel3
         path: zipper
 
-    - name: Checkout script
-      uses: actions/checkout@v3
-      with:
-        path: script
-
-    - name: Pre-build message to Telegram
+    - name: Pre-build Message to Telegram
       uses: appleboy/telegram-action@master
       with:
         to: ${{ secrets.CHANNEL_ID }}
@@ -45,40 +50,42 @@ jobs:
         disable_web_page_preview: true
         format:  html
         message: |
-          ${{ steps.vars.outputs.release_name }} build started.
+          ${{ env.RELEASE_NAME }} build started.
           
-          Building on commit <a href="https://github.com/DawfukFR/stellaris_kernel_oneplus_sm8250/commit/${{ steps.sha.outputs.long_sha }}">${{ steps.sha.outputs.short_sha }}</a>.
+          Building on commit <a href="https://github.com/${{ env.REPO }}/commit/${{ steps.vars.outputs.long_sha }}">${{ steps.vars.outputs.short_sha }}</a>.
 
-          <a href="https://github.com/${{ steps.vars.outputs.repo }}/commits">All Commits</a> | <a href="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}">Running Action</a>
+          <a href="https://github.com/${{ env.REPO }}/commits">All Commits</a> | <a href="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}">Running Action</a>
 
-    - name: Run script to remove Ksu
-      run: python script/remove-ksu.py ${{ steps.vars.outputs.release_name }}
+    - name: Run Script to Remove Ksu
+      run: python script/remove-ksu.py ${{ env.RELEASE_NAME }}
 
-    - name: Android kernel build
+    - name: Android Kernel Build
       uses: sen-tenz/android-kernel-actions@neutron
       id: build
       env:
-        NAME: ${{ steps.vars.outputs.release_name }}
-        KERNEL_PATH: ${{ steps.vars.outputs.release_name }}
+        NAME: ${{ env.RELEASE_NAME }}
+        KERNEL_PATH: ${{ env.RELEASE_NAME }}
       with:
-        arch: arm64
-        compiler: neutron-clang/latest
-        defconfig: vendor/kona-perf_defconfig
-        image: Image.gz
+        arch: ${{ env.ARCH }}
+        compiler: ${{ env.COMPILER }}
+        defconfig: ${{ env.DEFCONFIG }}
+        image: ${{ env.IMAGE }}
+        dtbo: ${{ env.DTBO }}
+        dtb: ${{ env.DTB }}
 
-    - name: Post build to Telegram
+    - name: Post Build to Telegram
       uses: appleboy/telegram-action@master
       with:
         to: ${{ secrets.CHANNEL_ID }}
         token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         disable_web_page_preview: true
-        message: ${{ steps.vars.outputs.release_name }} is built!, took ${{ steps.build.outputs.elapsed_time }} seconds.
+        message: ${{ env.RELEASE_NAME }} is built!, took ${{ steps.build.outputs.elapsed_time }} seconds.
         document: ${{ steps.build.outputs.outfile }}
         
-    - name: "Alert failed build"
+    - name: "Alert Failed Build"
       uses: appleboy/telegram-action@master
       if: ${{ failure() }}
       with:
         to: ${{ secrets.CHANNEL_ID }}
         token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        message: Failed building ${{ steps.vars.outputs.release_name }}, check action for more info.
+        message: Failed building ${{ env.RELEASE_NAME }}, check action for more info.
